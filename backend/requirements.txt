@@ -1,0 +1,10 @@
+fastapi
+unicorn
+pydantic
+python-multipart
+
+pymupdf
+spacy
+nltk
+scikit-learn
+sentence-transformers
