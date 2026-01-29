@@ -8,7 +8,7 @@ from app.models.embeddings import get_embedding_model
 def semantic_match(
     resume_sentences: List[str],
     jd_sentences: List[str],
-    threshold: float = 0.5
+    threshold: float = 0.45
 ) -> Dict[str, object]:
 
     model = get_embedding_model()
