@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-BACKEND_URL = "http://localhost:8000/match"
+BACKEND_URL = "http://backend:8000/match"
 
 st.set_page_config(page_title="Resume JD Matcher", layout="centered")
 
