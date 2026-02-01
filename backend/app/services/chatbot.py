@@ -1,6 +1,10 @@
 import requests
 from typing import Dict
 
+from app.services.memory import ChatMemory
+from app.services.improvement_engine import generate_improvements
+
+
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 SYSTEM_PROMPT = """
@@ -8,13 +12,16 @@ You are an AI career assistant.
 
 STRICT RULES:
 - Use ONLY the provided analysis.
-- DO NOT invent skills or experience.
-- If something is missing, say so.
-- Be concise, honest, and actionable.
+- DO NOT invent skills, experience, or projects.
+- If something is missing, say so clearly.
+- Give actionable, practical advice.
+- Be concise and professional.
 """
 
 
 def build_context(analysis: Dict[str, object]) -> str:
+    improvements = generate_improvements(analysis["missing_skills"])
+
     return f"""
 MATCH SCORES:
 - Final Score: {analysis['final_score']}
@@ -27,6 +34,9 @@ MATCHED SKILLS:
 MISSING SKILLS:
 {analysis['missing_skills']}
 
+ACTIONABLE IMPROVEMENTS:
+{improvements}
+
 SEMANTIC MATCHES:
 {analysis['semantic_matches']}
 """
@@ -35,11 +45,17 @@ SEMANTIC MATCHES:
 def chat_with_resume_bot(
     user_question: str,
     analysis: Dict[str, object],
+    memory: ChatMemory,
     model: str = "llama3"
 ) -> str:
 
+    conversation_history = memory.format_history()
+
     prompt = f"""
 {SYSTEM_PROMPT}
+
+Conversation so far:
+{conversation_history}
 
 Here is the resume vs job description analysis:
 {build_context(analysis)}
@@ -50,9 +66,6 @@ User question:
 Answer:
 """
 
-    print("\n=== DEBUG: PROMPT SENT TO LLM ===\n")
-    print(prompt)
-
     response = requests.post(
         OLLAMA_URL,
         json={
@@ -62,7 +75,8 @@ Answer:
         }
     )
 
-    print("\n=== DEBUG: RAW RESPONSE ===\n")
-    print(response.text)
+    answer = response.json()["response"].strip()
 
-    return response.json().get("response", "").strip()
+    memory.add_turn(user_question, answer)
+
+    return answer
