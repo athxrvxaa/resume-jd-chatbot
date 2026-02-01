@@ -1,22 +1,16 @@
-from dotenv import load_dotenv
-import os
-from openai import OpenAI
+import requests
 from typing import Dict
-import os
 
-load_dotenv()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+OLLAMA_URL = "http://localhost:11434/api/generate"
 
 SYSTEM_PROMPT = """
 You are an AI career assistant.
 
-RULES (STRICT):
-- You MUST use only the provided context.
-- You MUST NOT invent skills, experience, or facts.
-- If information is missing, say so clearly.
-- Be concise, actionable, and honest.
-- Explain reasoning step by step when appropriate.
+STRICT RULES:
+- Use ONLY the provided analysis.
+- DO NOT invent skills or experience.
+- If something is missing, say so.
+- Be concise, honest, and actionable.
 """
 
 
@@ -40,28 +34,35 @@ SEMANTIC MATCHES:
 
 def chat_with_resume_bot(
     user_question: str,
-    analysis: Dict[str, object]
+    analysis: Dict[str, object],
+    model: str = "llama3"
 ) -> str:
 
-    context = build_context(analysis)
+    prompt = f"""
+{SYSTEM_PROMPT}
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"""
-Here is the resume vs JD analysis:
-
-{context}
+Here is the resume vs job description analysis:
+{build_context(analysis)}
 
 User question:
 {user_question}
+
+Answer:
 """
-            }
-        ],
-        temperature=0.2
+
+    print("\n=== DEBUG: PROMPT SENT TO LLM ===\n")
+    print(prompt)
+
+    response = requests.post(
+        OLLAMA_URL,
+        json={
+            "model": model,
+            "prompt": prompt,
+            "stream": False
+        }
     )
 
-    return response.choices[0].message.content
+    print("\n=== DEBUG: RAW RESPONSE ===\n")
+    print(response.text)
+
+    return response.json().get("response", "").strip()

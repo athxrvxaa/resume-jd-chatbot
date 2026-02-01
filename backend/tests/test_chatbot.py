@@ -19,7 +19,11 @@ if __name__ == "__main__":
 
     question = "Why is my resume not a perfect match for this job?"
 
-    answer = chat_with_resume_bot(question, analysis)
+    answer = chat_with_resume_bot(
+        question,
+        analysis
+    )
+
 
     print("\nCHATBOT RESPONSE:\n")
     print(answer)
