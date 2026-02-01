@@ -1,8 +1,8 @@
 import requests
 from typing import Dict
 
-from app.services.memory import ChatMemory
-from app.services.improvement_engine import generate_improvements
+from ..services.memory import ChatMemory
+from ..services.improvement_engine import generate_improvements
 
 
 OLLAMA_URL = "http://localhost:11434/api/generate"

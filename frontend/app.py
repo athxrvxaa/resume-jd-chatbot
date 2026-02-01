@@ -1,61 +1,120 @@
+import sys
+import os
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, PROJECT_ROOT)
+
+
+
 import streamlit as st
-import requests
 
-BACKEND_URL = "http://backend:8000/match"
+from backend.app.utils.pdf_reader import extract_text_from_pdf
+from backend.app.utils.text_cleaner import clean_text
+from backend.app.services.resume_parser import detect_sections
+from backend.app.services.skill_extractor import extract_skills_from_text
+from backend.app.services.jd_parser import extract_skills_from_jd
+from backend.app.services.similarity import skill_gap_analysis
+from backend.app.services.semantic_matcher import semantic_match
+from backend.app.services.final_matcher import final_match_score
+from backend.app.services.chatbot import chat_with_resume_bot
+from backend.app.services.memory import ChatMemory
 
-st.set_page_config(page_title="Resume JD Matcher", layout="centered")
 
-st.title("Resume–Job Description Matcher")
-st.write("Upload your resume and paste the job description to see how well you match.")
 
-resume_file = st.file_uploader("Upload Resume (PDF only)", type=["pdf"])
 
-job_description = st.text_area(
-    "Paste Job Description",
-    height=200,
-    placeholder="Enter the job description here..."
+st.set_page_config(page_title="Resume Chatbot", layout="centered")
+st.title("📄 Resume–JD Chatbot (Local LLM)")
+
+st.write(
+    "Upload your resume and job description. "
+    "Then chat with an AI assistant that explains gaps and suggests improvements."
 )
 
-if st.button("Analyze"):
-    if resume_file is None or not job_description.strip():
+# ---------- SESSION STATE ----------
+if "analysis" not in st.session_state:
+    st.session_state.analysis = None
+
+if "memory" not in st.session_state:
+    st.session_state.memory = ChatMemory()
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+
+# ---------- INPUTS ----------
+resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
+jd_text = st.text_area("Paste Job Description", height=200)
+
+# ---------- ANALYZE BUTTON ----------
+if st.button("Analyze Resume"):
+    if resume_file is None or not jd_text.strip():
         st.warning("Please upload a resume and paste a job description.")
     else:
         with st.spinner("Analyzing resume..."):
-            files = {
-                "resume": (resume_file.name, resume_file, "application/pdf")
-            }
-            data = {
-                "job_description": job_description
-            }
 
-            try:
-                response = requests.post(BACKEND_URL, files=files, data=data)
-                result = response.json()
+            # Save uploaded PDF temporarily
+            with open("temp_resume.pdf", "wb") as f:
+                f.write(resume_file.read())
 
-                st.success("Analysis complete!")
+            # ---- PIPELINE ----
+            raw = extract_text_from_pdf("temp_resume.pdf")
+            clean = clean_text(raw)
+            sections = detect_sections(clean)
 
-            
-                st.subheader("Match Scores")
-                st.metric("Final Match Score", result["final_score"])
-                col1, col2 = st.columns(2)
-                col1.metric("Rule-based Score", result["rule_score"])
-                col2.metric("Semantic Score", result["semantic_score"])
+            resume_skills = set()
+            resume_sentences = []
 
-            
-                st.subheader("Matched Skills")
-                st.write(result["matched_skills"] or "None")
+            for sec in ["skills", "projects", "experience", "internships"]:
+                if sec in sections:
+                    resume_skills |= extract_skills_from_text(sections[sec])
+                    resume_sentences.extend(sections[sec].split("\n"))
 
-                st.subheader("Missing Skills")
-                st.write(result["missing_skills"] or "None")
+            jd_skills = extract_skills_from_jd(jd_text)
+            jd_sentences = jd_text.split("\n")
 
-            
-                if result["semantic_matches"]:
-                    st.subheader("Semantic Matches")
-                    for match in result["semantic_matches"]:
-                        st.write(
-                            f"- **JD Requirement:** {match['jd_sentence']} "
-                            f"(similarity: {match['similarity']})"
-                        )
+            rule_result = skill_gap_analysis(resume_skills, jd_skills)
+            semantic_result = semantic_match(resume_sentences, jd_sentences)
+            analysis = final_match_score(rule_result, semantic_result)
 
-            except Exception as e:
-                st.error(f"Error connecting to backend: {e}")
+            st.session_state.analysis = analysis
+            st.session_state.memory = ChatMemory()
+            st.session_state.chat_history = []
+
+        st.success("Analysis complete!")
+
+        st.subheader("📊 Match Summary")
+        st.write(f"**Final Score:** {analysis['final_score']}")
+        st.write(f"Rule-based Score: {analysis['rule_score']}")
+        st.write(f"Semantic Score: {analysis['semantic_score']}")
+
+        st.subheader("✅ Matched Skills")
+        st.write(analysis["matched_skills"])
+
+        st.subheader("❌ Missing Skills")
+        st.write(analysis["missing_skills"])
+
+
+# ---------- CHAT INTERFACE ----------
+if st.session_state.analysis is not None:
+    st.divider()
+    st.subheader("💬 Chat with Resume Assistant")
+
+    user_input = st.text_input("Ask a question about your resume:")
+
+    if st.button("Send"):
+        if user_input.strip():
+            with st.spinner("Thinking..."):
+                answer = chat_with_resume_bot(
+                    user_input,
+                    st.session_state.analysis,
+                    st.session_state.memory
+                )
+
+            st.session_state.chat_history.append(
+                {"user": user_input, "assistant": answer}
+            )
+
+    # Display chat history
+    for turn in st.session_state.chat_history:
+        st.markdown(f"**You:** {turn['user']}")
+        st.markdown(f"**Assistant:** {turn['assistant']}")

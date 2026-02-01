@@ -1,8 +1,7 @@
-# from sentence_transformers.util import cosine_similarity
 from typing import List, Dict
 import torch
 
-from app.models.embeddings import get_embedding_model
+from ..models.embeddings import get_embedding_model
 
 
 def semantic_match(
