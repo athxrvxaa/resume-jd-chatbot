@@ -4,10 +4,10 @@ import os
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
-
-
 import streamlit as st
 
+from backend.app.services.bullet_extractor import extract_bullets
+from backend.app.services.bullet_rewriter import rewrite_bullets
 from backend.app.utils.pdf_reader import extract_text_from_pdf
 from backend.app.utils.text_cleaner import clean_text
 from backend.app.services.resume_parser import detect_sections
@@ -18,8 +18,6 @@ from backend.app.services.semantic_matcher import semantic_match
 from backend.app.services.final_matcher import final_match_score
 from backend.app.services.chatbot import chat_with_resume_bot
 from backend.app.services.memory import ChatMemory
-
-
 
 
 st.set_page_config(page_title="Resume Chatbot", layout="centered")
@@ -52,14 +50,20 @@ if st.button("Analyze Resume"):
     else:
         with st.spinner("Analyzing resume..."):
 
-            # Save uploaded PDF temporarily
             with open("temp_resume.pdf", "wb") as f:
                 f.write(resume_file.read())
 
-            # ---- PIPELINE ----
             raw = extract_text_from_pdf("temp_resume.pdf")
             clean = clean_text(raw)
             sections = detect_sections(clean)
+
+            # ---- EXTRACT BULLETS ----
+            resume_bullets = {}
+            for sec in ["projects", "experience"]:
+                if sec in sections:
+                    resume_bullets[sec] = extract_bullets(sections[sec])
+
+            st.session_state.resume_bullets = resume_bullets
 
             resume_skills = set()
             resume_sentences = []
@@ -78,7 +82,7 @@ if st.button("Analyze Resume"):
 
             analysis["resume_sections_text"] = "\n".join(sections.values())
             analysis["jd_text"] = jd_text
-            
+
             st.session_state.analysis = analysis
             st.session_state.memory = ChatMemory()
             st.session_state.chat_history = []
@@ -97,8 +101,55 @@ if st.button("Analyze Resume"):
         st.write(analysis["missing_skills"])
 
 
-# ---------- CHAT INTERFACE ----------
-if st.session_state.analysis is not None:
+# ---------- SIDEBAR + CHAT ----------
+if (
+    st.session_state.analysis is not None
+    and "resume_bullets" in st.session_state
+):
+
+    # ---------- SIDEBAR: REWRITE BULLETS ----------
+    st.sidebar.header("✂️ Rewrite Resume Bullets")
+
+    selected_section = st.sidebar.selectbox(
+        "Select section",
+        options=list(st.session_state.resume_bullets.keys())
+    )
+
+    selected_bullets = []
+
+    if selected_section:
+        st.sidebar.subheader("Select bullets to rewrite")
+
+        for i, bullet in enumerate(
+            st.session_state.resume_bullets[selected_section]
+        ):
+            if st.sidebar.checkbox(
+                bullet,
+                key=f"{selected_section}_{i}"
+            ):
+                selected_bullets.append(bullet)
+
+    # ---------- REWRITE BUTTON ----------
+    if st.sidebar.button("Rewrite Selected Bullets"):
+        if not selected_bullets:
+            st.sidebar.warning("Select at least one bullet.")
+        else:
+            with st.sidebar.spinner("Rewriting bullets..."):
+                rewritten = rewrite_bullets(
+                    bullets=selected_bullets,
+                    jd_text=st.session_state.analysis["jd_text"]
+                )
+
+            st.subheader("✨ Rewritten Bullets")
+            rewritten_text = "\n".join([f"- {b}" for b in rewritten])
+
+            st.text_area(
+                "You can edit and copy these bullets:",
+                value=rewritten_text,
+                height=200
+            )
+
+    # ---------- CHAT ----------
     st.divider()
     st.subheader("💬 Chat with Resume Assistant")
 
@@ -117,7 +168,6 @@ if st.session_state.analysis is not None:
                 {"user": user_input, "assistant": answer}
             )
 
-    # Display chat history
     for turn in st.session_state.chat_history:
         st.markdown(f"**You:** {turn['user']}")
         st.markdown(f"**Assistant:** {turn['assistant']}")
