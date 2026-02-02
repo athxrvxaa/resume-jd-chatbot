@@ -76,6 +76,9 @@ if st.button("Analyze Resume"):
             semantic_result = semantic_match(resume_sentences, jd_sentences)
             analysis = final_match_score(rule_result, semantic_result)
 
+            analysis["resume_sections_text"] = "\n".join(sections.values())
+            analysis["jd_text"] = jd_text
+            
             st.session_state.analysis = analysis
             st.session_state.memory = ChatMemory()
             st.session_state.chat_history = []

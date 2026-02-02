@@ -1,6 +1,9 @@
 import requests
 from typing import Dict
 
+
+from backend.app.services.bullet_extractor import extract_bullets
+from backend.app.services.bullet_rewriter import rewrite_bullets
 from ..services.memory import ChatMemory
 from ..services.improvement_engine import generate_improvements
 
@@ -48,6 +51,23 @@ def chat_with_resume_bot(
     memory: ChatMemory,
     model: str = "llama3"
 ) -> str:
+    if "rewrite" in user_question.lower() and "bullet" in user_question.lower():
+
+        sections_text = analysis.get("resume_sections_text", "")
+        bullets = extract_bullets(sections_text)
+
+        if not bullets:
+            return "I could not find clear resume bullets to rewrite."
+
+        rewritten = rewrite_bullets(
+            bullets=bullets[:5], 
+            jd_text=analysis.get("jd_text", "")
+        )
+
+        memory.add_turn(user_question, "\n".join(rewritten))
+
+        return "\n".join([f"- {b}" for b in rewritten])
+
 
     conversation_history = memory.format_history()
 
