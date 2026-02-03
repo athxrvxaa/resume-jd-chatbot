@@ -1,14 +1,11 @@
-import requests
 from typing import Dict
-
 
 from backend.app.services.bullet_extractor import extract_bullets
 from backend.app.services.bullet_rewriter import rewrite_bullets
 from ..services.memory import ChatMemory
 from ..services.improvement_engine import generate_improvements
+from ..services.llm_provider import generate_llm_response
 
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
 
 SYSTEM_PROMPT = """
 You are an AI career assistant.
@@ -49,8 +46,10 @@ def chat_with_resume_bot(
     user_question: str,
     analysis: Dict[str, object],
     memory: ChatMemory,
-    model: str = "llama3"
-) -> str:
+    model: str = "llama3",
+    stream: bool = False
+):
+    # -------- Bullet rewrite path --------
     if "rewrite" in user_question.lower() and "bullet" in user_question.lower():
 
         sections_text = analysis.get("resume_sections_text", "")
@@ -60,15 +59,15 @@ def chat_with_resume_bot(
             return "I could not find clear resume bullets to rewrite."
 
         rewritten = rewrite_bullets(
-            bullets=bullets[:5], 
+            bullets=bullets[:5],
             jd_text=analysis.get("jd_text", "")
         )
 
-        memory.add_turn(user_question, "\n".join(rewritten))
+        answer = "\n".join([f"- {b}" for b in rewritten])
+        memory.add_turn(user_question, answer)
+        return answer
 
-        return "\n".join([f"- {b}" for b in rewritten])
-
-
+    # -------- Normal chat path --------
     conversation_history = memory.format_history()
 
     prompt = f"""
@@ -86,17 +85,21 @@ User question:
 Answer:
 """
 
-    response = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": model,
-            "prompt": prompt,
-            "stream": False
-        }
+    llm_output = generate_llm_response(
+        prompt=prompt,
+        provider=model,
+        stream=stream
     )
 
-    answer = response.json()["response"].strip()
+    # -------- Non-streaming --------
+    if not stream:
+        memory.add_turn(user_question, llm_output)
+        return llm_output
 
-    memory.add_turn(user_question, answer)
+    # -------- Streaming --------
+    full_answer = ""
+    for token in llm_output:
+        full_answer += token
+        yield token
 
-    return answer
+    memory.add_turn(user_question, full_answer)

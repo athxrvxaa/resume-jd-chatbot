@@ -20,12 +20,21 @@ from backend.app.services.chatbot import chat_with_resume_bot
 from backend.app.services.memory import ChatMemory
 
 
+# ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="Resume Chatbot", layout="centered")
-st.title("📄 Resume–JD Chatbot (Local LLM)")
+st.title("📄 Resume–JD Chatbot (Local / Gemini)")
 
 st.write(
     "Upload your resume and job description. "
     "Then chat with an AI assistant that explains gaps and suggests improvements."
+)
+
+# ---------- SIDEBAR: LLM SETTINGS ----------
+st.sidebar.header("⚙️ LLM Settings")
+
+llm_provider = st.sidebar.selectbox(
+    "Choose LLM",
+    ["local", "gemini"]
 )
 
 # ---------- SESSION STATE ----------
@@ -35,15 +44,14 @@ if "analysis" not in st.session_state:
 if "memory" not in st.session_state:
     st.session_state.memory = ChatMemory()
 
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 # ---------- INPUTS ----------
 resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
 jd_text = st.text_area("Paste Job Description", height=200)
 
-# ---------- ANALYZE BUTTON ----------
+# ---------- ANALYZE ----------
 if st.button("Analyze Resume"):
     if resume_file is None or not jd_text.strip():
         st.warning("Please upload a resume and paste a job description.")
@@ -85,7 +93,7 @@ if st.button("Analyze Resume"):
 
             st.session_state.analysis = analysis
             st.session_state.memory = ChatMemory()
-            st.session_state.chat_history = []
+            st.session_state.messages = []
 
         st.success("Analysis complete!")
 
@@ -101,13 +109,13 @@ if st.button("Analyze Resume"):
         st.write(analysis["missing_skills"])
 
 
-# ---------- SIDEBAR + CHAT ----------
+# ---------- SIDEBAR: BULLET REWRITE ----------
 if (
     st.session_state.analysis is not None
     and "resume_bullets" in st.session_state
 ):
 
-    # ---------- SIDEBAR: REWRITE BULLETS ----------
+    st.sidebar.divider()
     st.sidebar.header("✂️ Rewrite Resume Bullets")
 
     selected_section = st.sidebar.selectbox(
@@ -118,7 +126,7 @@ if (
     selected_bullets = []
 
     if selected_section:
-        st.sidebar.subheader("Select bullets to rewrite")
+        st.sidebar.subheader("Select bullets")
 
         for i, bullet in enumerate(
             st.session_state.resume_bullets[selected_section]
@@ -129,7 +137,6 @@ if (
             ):
                 selected_bullets.append(bullet)
 
-    # ---------- REWRITE BUTTON ----------
     if st.sidebar.button("Rewrite Selected Bullets"):
         if not selected_bullets:
             st.sidebar.warning("Select at least one bullet.")
@@ -141,33 +148,49 @@ if (
                 )
 
             st.subheader("✨ Rewritten Bullets")
-            rewritten_text = "\n".join([f"- {b}" for b in rewritten])
-
             st.text_area(
                 "You can edit and copy these bullets:",
-                value=rewritten_text,
+                value="\n".join([f"- {b}" for b in rewritten]),
                 height=200
             )
 
-    # ---------- CHAT ----------
+# ---------- CHAT ----------
+if st.session_state.analysis is not None:
+
     st.divider()
-    st.subheader("💬 Chat with Resume Assistant")
+    st.subheader("💬 Resume Assistant")
 
-    user_input = st.text_input("Ask a question about your resume:")
+    # display chat history (TOP → BOTTOM)
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-    if st.button("Send"):
-        if user_input.strip():
-            with st.spinner("Thinking..."):
-                answer = chat_with_resume_bot(
-                    user_input,
-                    st.session_state.analysis,
-                    st.session_state.memory
-                )
+    # chat input
+    if prompt := st.chat_input("Ask something about your resume"):
+        # user message
+        st.session_state.messages.append(
+            {"role": "user", "content": prompt}
+        )
 
-            st.session_state.chat_history.append(
-                {"user": user_input, "assistant": answer}
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            placeholder = st.empty()
+            streamed_text = ""
+
+            response_stream = chat_with_resume_bot(
+                prompt,
+                st.session_state.analysis,
+                st.session_state.memory,
+                model=llm_provider,
+                stream=True
             )
 
-    for turn in st.session_state.chat_history:
-        st.markdown(f"**You:** {turn['user']}")
-        st.markdown(f"**Assistant:** {turn['assistant']}")
+            for token in response_stream:
+                streamed_text += token
+                placeholder.markdown(streamed_text)
+
+        st.session_state.messages.append(
+            {"role": "assistant", "content": streamed_text}
+        )

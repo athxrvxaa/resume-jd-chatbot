@@ -4,6 +4,7 @@ pydantic
 python-multipart
 openai
 python-dotenv
+google-genai
 
 pymupdf
 spacy
