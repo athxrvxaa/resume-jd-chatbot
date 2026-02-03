@@ -1,16 +1,18 @@
-# 📄 Resume–JD Analysis & Chatbot (Local LLM)
+# 📄 Resume–JD Analysis & Chatbot (Local + Gemini LLM)
 
 ## Overview
 
-This project is an **end-to-end AI resume analysis and rewriting system** that compares a candidate’s resume against a job description and provides:
+This project is an **end-to-end AI resume analysis, rewriting, and chat system** that compares a candidate’s resume against a job description and provides:
 
-- Explainable match scores
-- Missing skill analysis
-- Actionable improvement suggestions
-- LLM-powered resume bullet rewriting
-- An interactive chatbot with memory
+- explainable match scores  
+- missing skill analysis  
+- actionable improvement suggestions  
+- **LLM-powered resume bullet rewriting**  
+- an interactive **chatbot with memory and streaming responses**
 
-The system combines **deterministic NLP techniques** with **semantic embeddings** and a **local LLM (no paid APIs)**, exposed through a **Streamlit UI**.
+The system combines **deterministic NLP pipelines**, **semantic embeddings**, and **LLM reasoning** (local and cloud) inside a **Streamlit UI**.
+
+It is designed to be **grounded, explainable, and provider-agnostic** — not a generic chatbot wrapper.
 
 ---
 
@@ -19,39 +21,51 @@ The system combines **deterministic NLP techniques** with **semantic embeddings*
 ### 🔍 Resume–JD Matching
 
 - Parses resume PDFs
+- Cleans and segments text into logical sections
 - Extracts skills from resume and job description
 - Computes:
   - Rule-based skill match score
   - Semantic similarity score using sentence embeddings
 - Produces an **explainable final match score**
 
-### 🧠 Grounded Chatbot (Local LLM)
+---
 
-- Uses a **local LLM via Ollama (LLaMA 3)**
-- Answers questions like:
-  - *Why is my resume not a perfect match?*
-  - *What should I improve first?*
-- Responses are grounded in structured NLP outputs
+### 🧠 Grounded Chatbot (Local + Gemini LLM)
+
+- Supports **two LLM backends**:
+  - **Local LLM** via Ollama (LLaMA 3)
+  - **Gemini 2.5 Flash** (optional cloud backend)
+- LLM is used **only for reasoning and rewriting**
+- Resume parsing and scoring remain deterministic
 - No hallucinated skills or experience
-- Maintains **multi-turn conversation memory**
+- Maintains **multi-turn conversational memory**
+- Responses stream **word-by-word (ChatGPT-style)**
+
+---
 
 ### ✨ Resume Bullet Rewriting
 
 - Extracts bullets from resume sections (**Projects / Experience**)
-- Allows selective rewriting of chosen bullets
+- Allows **selective rewriting** of chosen bullets
 - Rewrites are:
   - Job-description aware
   - Fact-preserving
   - Resume-ready
-- Output is editable and copy-friendly
+- Output is **editable and copy-friendly**
+
+---
 
 ### 🖥️ Interactive UI (Streamlit)
 
 - Upload resume PDF
 - Paste job description
-- View scores and skill gaps
-- Chat with the assistant
-- Rewrite selected bullets via sidebar controls
+- View:
+  - match scores
+  - matched & missing skills
+- Chat with the assistant in a **ChatGPT-style interface**
+- Streamed responses (token-by-token)
+- Sidebar-based bullet selection and rewriting
+- LLM backend toggle (Local ↔ Gemini)
 
 ---
 
@@ -81,31 +95,34 @@ The system combines **deterministic NLP techniques** with **semantic embeddings*
 ## Tech Stack
 
 - **Python**
-- **Streamlit** – UI  
-- **Sentence Transformers** – semantic embeddings  
-- **Ollama (LLaMA 3)** – local LLM inference  
-- **PyMuPDF** – PDF parsing  
-- **Regex / Rule-based NLP** – skill extraction  
-- **Torch** – embedding similarity  
+- **Streamlit** – UI & chat interface
+- **Sentence Transformers** – semantic embeddings
+- **Ollama (LLaMA 3)** – local LLM inference
+- **Gemini 2.5 Flash** – optional cloud LLM
+- **PyMuPDF** – PDF parsing
+- **Regex / Rule-based NLP** – skill extraction
+- **Torch** – embedding similarity
 
-✅ No paid APIs  
-✅ No cloud dependency  
+✅ Works fully offline with local LLM  
+✅ Cloud LLM is optional, not required  
 
 ---
 
 ## Why This Project Is Different
 
-- Not a “ChatGPT wrapper”  
-- LLM does **not** parse resumes or invent facts  
-- All intelligence is grounded in deterministic NLP outputs  
-- Designed with **explainability and control** in mind  
+- Not a “ChatGPT wrapper”
+- LLM does **not** parse resumes or invent experience
+- All decisions are grounded in **deterministic NLP outputs**
+- Provider-agnostic LLM design (local + cloud)
+- Streaming responses improve UX without sacrificing control
 
 ### Real-world engineering challenges handled
 
-- Python packaging  
-- Circular imports  
-- Multi-entry-point execution  
-- Backend / frontend separation  
+- Python packaging & imports
+- Circular dependency resolution
+- Multi-entry-point execution (tests, Streamlit)
+- Backend / frontend separation
+- LLM provider abstraction
 
 ---
 
@@ -117,8 +134,11 @@ The system combines **deterministic NLP techniques** with **semantic embeddings*
 - **Ollama** installed  
   👉 https://ollama.com  
 
-Pull the model:
+---
 
+### Run with Local LLM (Recommended)
+
+Pull the model:
 ```bash
 ollama pull llama3
 ```
@@ -141,6 +161,12 @@ Then open:
 ```bash
 http://localhost:8501
 ```
+(Optional) Enable Gemini LLM
+Set your API key
+```bash
+export GEMINI_API_KEY=your_key_here
+```
+
 
 ## Example Use Cases
 - Understand why a resume is rejected for a role
@@ -148,6 +174,7 @@ http://localhost:8501
 - Improve resume bullets for ML / NLP roles
 - Compare alignment across different job descriptions
 - Get actionable, non-generic resume advice
+- Rewrite resume bullets safely for a target role
 
 ## Project Structure
 ```bash
@@ -176,5 +203,5 @@ resume-jd-chatbot/
 
 - This tool provides assistance, not guarantees.
 - All resume rewrites preserve original content and should be reviewed before use.
-
+- Users should review outputs before final submission.
 ---
