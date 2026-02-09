@@ -6,6 +6,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 import streamlit as st
 
+from backend.app.services.skill_actions import skill_action
 from backend.app.services.bullet_extractor import extract_bullets
 from backend.app.services.bullet_rewriter import rewrite_bullets
 from backend.app.utils.pdf_reader import extract_text_from_pdf
@@ -107,6 +108,13 @@ if st.button("Analyze Resume"):
 
         st.subheader("❌ Missing Skills")
         st.write(analysis["missing_skills"])
+        st.subheader("🛠️ How to Improve Missing Skills")
+
+        for skill in st.session_state.analysis["missing_skills"]:
+            st.markdown(f"**{skill.upper()}**")
+            st.markdown(f"- {skill_action(skill)}")
+
+
 
 
 # ---------- SIDEBAR: BULLET REWRITE ----------
